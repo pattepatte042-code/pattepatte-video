@@ -1,0 +1,40 @@
+name: Fabriquer une video
+on:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: "Identifiant de la video"
+        required: true
+      image_url:
+        description: "Adresse de la carte (n8n)"
+        required: true
+      duree:
+        description: "Duree en secondes"
+        required: false
+        default: "12"
+permissions:
+  contents: write
+concurrency:
+  group: rendu-video
+  cancel-in-progress: false
+jobs:
+  rendu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Installer ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - name: Fabriquer la video
+        env:
+          JOB_ID: ${{ inputs.job_id }}
+          IMAGE_URL: ${{ inputs.image_url }}
+          DUREE: ${{ inputs.duree }}
+        run: bash render.sh
+      - name: Publier la video (release "videos")
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_ID: ${{ inputs.job_id }}
+        run: |
+          gh release view videos >/dev/null 2>&1 || gh release create videos --title "Videos Patte a Patte" --notes "Videos generees automatiquement (Reels)."
+          gh release upload videos "videos/${JOB_ID}.mp4" --clobber
