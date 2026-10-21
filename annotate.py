@@ -75,11 +75,13 @@ if mode == 'tiers':
     ymax = max(q[1] for q in pts)
     yL = H * 2 / 3 if ymax > H * 2 / 3 else H / 3
     base.save(os.path.join(out, 'base.jpg'), quality=92)
+    S = 3  # sur-echantillonnage : lignes obliques nettes et lisses
     def trait(d, a, b, alpha):
-        d.line([(a[0] + 1.5, a[1] + 1.5), (b[0] + 1.5, b[1] + 1.5)], fill=(0, 0, 0, int(70 * alpha)), width=3)
-        d.line([a, b], fill=(255, 255, 255, int(230 * alpha)), width=3)
+        a = (a[0] * S, a[1] * S); b = (b[0] * S, b[1] * S)
+        d.line([(a[0] + 4, a[1] + 4), (b[0] + 4, b[1] + 4)], fill=(0, 0, 0, int(80 * alpha)), width=10, joint='curve')
+        d.line([a, b], fill=(255, 255, 255, int(235 * alpha)), width=10, joint='curve')
     def grille(prog, alpha):
-        c = calque(); d = ImageDraw.Draw(c)
+        c = Image.new('RGBA', (W * S, H * S), (0, 0, 0, 0)); d = ImageDraw.Draw(c)
         for k in (1, 2):
             trait(d, (W * k / 3, 0), (W * k / 3, H), alpha)
         for yy in (H / 3, H * 2 / 3):
@@ -88,7 +90,7 @@ if mode == 'tiers':
         eff = [(x, yL + (y - yL) * prog) for (x, y) in pts]
         trait(d, (0, yL), eff[0], alpha)
         trait(d, eff[-1], (W, yL), alpha)
-        return c
+        return c.resize((W, H), Image.LANCZOS)
     def ease(x):
         x = min(max(x, 0.0), 1.0); c1 = 1.70158; c3 = c1 + 1
         return 1 + c3 * (x - 1) ** 3 + c1 * (x - 1) ** 2
