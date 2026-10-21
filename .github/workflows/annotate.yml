@@ -9,7 +9,7 @@ on:
         description: "Photo source"
         required: true
       mode:
-        description: "grille ou final"
+        description: "grille, final ou tiers"
         required: true
         default: "grille"
       titre:
@@ -18,6 +18,10 @@ on:
         default: ""
       annotations:
         description: "JSON des annotations"
+        required: false
+        default: "[]"
+      pattes:
+        description: "JSON des points de contact (style tiers)"
         required: false
         default: "[]"
 permissions:
@@ -40,6 +44,7 @@ jobs:
           MODE: ${{ inputs.mode }}
           TITRE: ${{ inputs.titre }}
           ANNOTATIONS: ${{ inputs.annotations }}
+          PATTES: ${{ inputs.pattes }}
         run: bash annotate.sh
       - name: Publier (release "videos")
         env:
