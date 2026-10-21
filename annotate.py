@@ -65,6 +65,46 @@ if mode == 'grille':
     Image.alpha_composite(g, c).convert('RGB').save(os.path.join(out, 'G-' + job + '.jpg'), quality=88)
     print('grille ok'); sys.exit(0)
 
+if mode == 'tiers':
+    # Style « third bending » : grille des tiers dont une ligne est enfoncee par les pattes
+    titre = os.environ.get('TITRE', '').strip()[:60]
+    pattes = sorted(json.loads(os.environ.get('PATTES', '[]') or '[]')[:3], key=lambda q: float(q['x']))
+    pts = [P(float(q['x']), float(q['y'])) for q in pattes]
+    if not pts:
+        print('aucune patte'); sys.exit(1)
+    ymax = max(q[1] for q in pts)
+    yL = H * 2 / 3 if ymax > H * 2 / 3 else H / 3
+    base.save(os.path.join(out, 'base.jpg'), quality=92)
+    def trait(d, a, b, alpha):
+        d.line([(a[0] + 1.5, a[1] + 1.5), (b[0] + 1.5, b[1] + 1.5)], fill=(0, 0, 0, int(70 * alpha)), width=3)
+        d.line([a, b], fill=(255, 255, 255, int(230 * alpha)), width=3)
+    def grille(prog, alpha):
+        c = calque(); d = ImageDraw.Draw(c)
+        for k in (1, 2):
+            trait(d, (W * k / 3, 0), (W * k / 3, H), alpha)
+        for yy in (H / 3, H * 2 / 3):
+            if abs(yy - yL) > 1:
+                trait(d, (0, yy), (W, yy), alpha)
+        eff = [(x, yL + (y - yL) * prog) for (x, y) in pts]
+        trait(d, (0, yL), eff[0], alpha)
+        trait(d, eff[-1], (W, yL), alpha)
+        return c
+    def ease(x):
+        x = min(max(x, 0.0), 1.0); c1 = 1.70158; c3 = c1 + 1
+        return 1 + c3 * (x - 1) ** 3 + c1 * (x - 1) ** 2
+    ct = calque(); d = ImageDraw.Draw(ct)
+    if titre:
+        texte(d, (56, 92), titre.upper(), 50, 'lm', 24)
+    texte(d, (W / 2, H - 44), '@pattepatte2026', 28, 'mm', 40)
+    ct.save(os.path.join(out, 'calque_titre.png'))
+    os.makedirs(os.path.join(out, 'frames'), exist_ok=True)
+    for i in range(40):
+        t = i / 15.0
+        grille(ease((t - 1.0) / 1.1), min(1.0, t / 0.5)).save(os.path.join(out, 'frames', 'f%03d.png' % i))
+    fin = Image.alpha_composite(Image.alpha_composite(base.convert('RGBA'), grille(1.0, 1.0)), ct)
+    fin.convert('RGB').save(os.path.join(out, 'A-' + job + '.jpg'), quality=92)
+    print('tiers ok', len(pts), 'pattes'); sys.exit(0)
+
 titre = os.environ.get('TITRE', '').strip()[:60]
 annots = json.loads(os.environ.get('ANNOTATIONS', '[]') or '[]')[:5]
 base.save(os.path.join(out, 'base.jpg'), quality=92)
