@@ -6,12 +6,20 @@ case "${IMAGE_URL}" in
   https://pattepatte.app.n8n.cloud/*|https://pixabay.com/*|https://cdn.pixabay.com/*|https://upload.wikimedia.org/*) ;;
   *) echo "adresse d image refusee"; exit 1;;
 esac
-[[ "${MODE}" == "grille" || "${MODE}" == "final" ]] || { echo "mode invalide"; exit 1; }
+[[ "${MODE}" == "grille" || "${MODE}" == "final" || "${MODE}" == "tiers" ]] || { echo "mode invalide"; exit 1; }
 mkdir -p videos tmp
 curl -fsSL --retry 5 --retry-delay 4 -A "Mozilla/5.0 (pattepatte)" -o tmp/photo.jpg "${IMAGE_URL}"
 python3 annotate.py "${MODE}" tmp/photo.jpg tmp "${JOB_ID}"
 if [[ "${MODE}" == "grille" ]]; then cp "tmp/G-${JOB_ID}.jpg" videos/; exit 0; fi
 cp "tmp/A-${JOB_ID}.jpg" videos/
+if [[ "${MODE}" == "tiers" ]]; then
+  DUREE=8; FIN=7.3
+  if python3 music.py "${DUREE}" "${JOB_ID}" tmp/musique.wav; then AUDIO=(-i tmp/musique.wav); else AUDIO=(-f lavfi -t "${DUREE}" -i anullsrc=r=44100:cl=stereo); fi
+  ffmpeg -y -loglevel error -loop 1 -framerate 30 -t "${DUREE}" -i tmp/base.jpg -framerate 15 -i tmp/frames/f%03d.png -loop 1 -framerate 30 -t "${DUREE}" -i tmp/calque_titre.png "${AUDIO[@]}" \
+    -filter_complex "[0:v]split=2[a][b];[a]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=40:4,eq=brightness=-0.15[bg];[bg][b]overlay=0:285[v0];[1:v]format=rgba,fps=30,tpad=stop_mode=clone:stop_duration=${DUREE}[g];[v0][g]overlay=0:285[v1];[2:v]format=rgba,fade=t=in:st=2.4:d=0.5:alpha=1[t];[v1][t]overlay=0:285,fade=t=in:st=0:d=0.4,fade=t=out:st=${FIN}:d=0.7,format=yuv420p[v]" \
+    -map "[v]" -map 3:a -t "${DUREE}" -c:v libx264 -preset medium -crf 21 -profile:v high -r 30 -c:a aac -b:a 128k -movflags +faststart "videos/A-${JOB_ID}.mp4"
+  ls -la videos/; exit 0
+fi
 N=$(ls tmp/calque*.png | wc -l)
 NA=$(( N - 2 ))
 DUREE=$(awk "BEGIN{d=1.6+${NA}*1.7+3.2; if(d<8)d=8; print int(d+0.5)}")
