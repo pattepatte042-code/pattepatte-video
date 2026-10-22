@@ -1,0 +1,39 @@
+name: Carrousel
+on:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: "Identifiant"
+        required: true
+      spec:
+        description: "JSON du carrousel (theme, categorie, slides)"
+        required: true
+      image_url:
+        description: "Photo de couverture (facultatif)"
+        required: false
+        default: ""
+permissions:
+  contents: write
+concurrency:
+  group: rendu-video
+  cancel-in-progress: false
+jobs:
+  carrousel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Installer les outils
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-pil fonts-dejavu-core fonts-noto-color-emoji
+      - name: Fabriquer
+        env:
+          JOB_ID: ${{ inputs.job_id }}
+          SPEC: ${{ inputs.spec }}
+          IMAGE_URL: ${{ inputs.image_url }}
+        run: bash carousel.sh
+      - name: Publier (release "videos")
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view videos >/dev/null 2>&1 || gh release create videos --title "Videos Patte a Patte" --notes "Videos generees automatiquement (Reels)."
+          for f in videos/*; do gh release upload videos "$f" --clobber; done
