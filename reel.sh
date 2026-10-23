@@ -18,8 +18,12 @@ if [[ -n "${IMAGE_URL:-}" ]]; then
 fi
 POLICES_DIR=polices python3 reel.py tmp/spec.json "${PHOTO:-aucune}" tmp/frames
 DUREE=$(cat tmp/frames/duree.txt)
-if python3 music.py "${DUREE}" "${JOB_ID}" tmp/musique.wav; then AUDIO=(-i tmp/musique.wav); else AUDIO=(-f lavfi -t "${DUREE}" -i anullsrc=r=44100:cl=stereo); fi
-ffmpeg -y -loglevel error -framerate 30 -i tmp/frames/f%05d.jpg "${AUDIO[@]}" -map 0:v -map 1:a -t "${DUREE}" \
-  -c:v libx264 -preset medium -crf 20 -profile:v high -pix_fmt yuv420p -r 30 -c:a aac -b:a 128k -movflags +faststart "videos/E-${JOB_ID}.mp4"
+if python3 music.py "${DUREE}" "${JOB_ID}" tmp/musique.wav; then MUS=(-i tmp/musique.wav); else MUS=(-f lavfi -t "${DUREE}" -i anullsrc=r=44100:cl=stereo); fi
+# post-production son : bruitages originaux + mixage + normalisation du volume (-14 LUFS, standard des reseaux)
+if python3 sfx.py tmp/frames/coupes.txt "${DUREE}" tmp/sfx.wav; then SFX=(-i tmp/sfx.wav); else SFX=(-f lavfi -t "${DUREE}" -i anullsrc=r=44100:cl=stereo); fi
+ffmpeg -y -loglevel error -framerate 30 -i tmp/frames/f%05d.jpg "${MUS[@]}" "${SFX[@]}" \
+  -filter_complex "[1:a]volume=0.8[m];[2:a]volume=0.9[s];[m][s]amix=inputs=2:duration=first:normalize=0,afade=t=out:st=$(python3 -c "print(max(0,${DUREE}-0.6))"):d=0.6,loudnorm=I=-14:TP=-1.5:LRA=11[a]" \
+  -map 0:v -map "[a]" -t "${DUREE}" \
+  -c:v libx264 -preset medium -crf 19 -profile:v high -pix_fmt yuv420p -r 30 -c:a aac -b:a 160k -ar 44100 -movflags +faststart "videos/E-${JOB_ID}.mp4"
 cp tmp/frames/f00030.jpg "videos/E-${JOB_ID}.jpg"
 ls -la videos/
