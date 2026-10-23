@@ -126,11 +126,12 @@ TOTAL = 0.0
 plan = []
 for s in slides:
     t = s.get('type', 'point')
-    dur = 3.0 if t == 'couverture' else (3.6 if t == 'fin' else 3.8)
+    dur = 2.2 if t == 'couverture' else (2.6 if t == 'fin' else 2.9)
     plan.append((s, t, TOTAL, dur)); TOTAL += dur
 
-def scene_couverture(s, t, d_s, prog_global):
-    z = 1.0 + 0.10 * (t / d_s)
+def scene_couverture(s, t_reel, d_s, prog_global):
+    z = 1.0 + 0.10 * (t_reel / d_s)
+    t = t_reel + 1.7  # accroche visible des la 1re image
     cw, ch = int(W * 1.15 / z * 1.0), int(H * 1.15 / z * 1.0)
     x0 = (grand.width - cw) // 2; y0 = (grand.height - ch) // 2
     bg = grand.crop((x0, y0, x0 + cw, y0 + ch)).resize((W, H), Image.LANCZOS)
@@ -197,7 +198,8 @@ def ombre_texte(d, xy, txt, fnt, fill, a):
         d.text((xy[0] + ox, xy[1] + oy), txt, font=fnt, fill=(0, 0, 0, int(a * 0.55)))
     d.text(xy, txt, font=fnt, fill=fill[:3] + (a,))
 
-def scene_point(s, t, d_s, num, prog_global, tt):
+def scene_point(s, t_reel, d_s, num, prog_global, tt):
+    t = t_reel * 1.8 + 0.2  # animations rapides
     im = fond_photo(tt, 1.0)
     d = ImageDraw.Draw(im)
     barre_progression(d, prog_global)
@@ -255,7 +257,8 @@ def scene_point(s, t, d_s, num, prog_global, tt):
     signature(d)
     return im
 
-def scene_fin(s, t, d_s, prog_global):
+def scene_fin(s, t_reel, d_s, prog_global):
+    t = t_reel * 1.7 + 0.3
     im = Image.new('RGBA', (W, H), ACC + (255,))
     d = ImageDraw.Draw(im)
     barre_progression(d, prog_global)
