@@ -126,11 +126,11 @@ TOTAL = 0.0
 plan = []
 for s in slides:
     t = s.get('type', 'point')
-    dur = 2.2 if t == 'couverture' else (2.6 if t == 'fin' else 2.9)
+    dur = 1.6 if t == 'couverture' else (2.6 if t == 'fin' else 2.9)
     plan.append((s, t, TOTAL, dur)); TOTAL += dur
 
 def scene_couverture(s, t_reel, d_s, prog_global):
-    z = 1.0 + 0.10 * (t_reel / d_s)
+    z = 1.0 + 0.22 * (1 - ease_out(t_reel / 0.45)) + 0.06 * (t_reel / d_s)  # zoom choc au debut
     t = t_reel + 1.7  # accroche visible des la 1re image
     cw, ch = int(W * 1.15 / z * 1.0), int(H * 1.15 / z * 1.0)
     x0 = (grand.width - cw) // 2; y0 = (grand.height - ch) // 2
