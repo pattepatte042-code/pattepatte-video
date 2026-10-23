@@ -16,7 +16,22 @@ if [[ -n "${IMAGE_URL:-}" ]]; then
     *) echo "adresse d image refusee";;
   esac
 fi
-POLICES_DIR=polices python3 reel.py tmp/spec.json "${PHOTO:-aucune}" tmp/frames
+# vraies videos d animaux (Pixabay, libres de droits) : 1 clip par scene, recadre en vertical
+mkdir -p tmp/clips; k=0; set -f
+for U in ${VIDEO_URLS:-}; do
+  case "$U" in https://cdn.pixabay.com/*) ;; *) echo "clip refuse"; continue;; esac
+  [[ $k -ge 6 ]] && break
+  if curl -fsSL --retry 4 --retry-delay 3 --max-time 90 -A "Mozilla/5.0 (pattepatte)" -o "tmp/clips/c$k.mp4" "$U"; then
+    mkdir -p "tmp/clips/c$k"
+    ffmpeg -y -loglevel error -ss 0.8 -i "tmp/clips/c$k.mp4" -t 4 -an \
+      -vf "fps=30,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,eq=contrast=1.04:saturation=1.08" \
+      -q:v 3 "tmp/clips/c$k/g%05d.jpg" || rm -rf "tmp/clips/c$k"
+    rm -f "tmp/clips/c$k.mp4"; k=$((k+1))
+  fi
+done
+set +f
+echo "clips video : $k"
+CLIPS_DIR=tmp/clips POLICES_DIR=polices python3 reel.py tmp/spec.json "${PHOTO:-aucune}" tmp/frames
 DUREE=$(cat tmp/frames/duree.txt)
 if python3 music.py "${DUREE}" "${JOB_ID}" tmp/musique.wav; then MUS=(-i tmp/musique.wav); else MUS=(-f lavfi -t "${DUREE}" -i anullsrc=r=44100:cl=stereo); fi
 # post-production son : bruitages originaux + mixage + normalisation du volume (-14 LUFS, standard des reseaux)
