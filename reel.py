@@ -106,6 +106,7 @@ degrade = Image.new('L', (1, H))
 for y in range(H):
     degrade.putpixel((0, y), int(255 * max(0, (y - H * 0.5) / (H * 0.5)) ** 1.5 * 0.7))
 degrade = degrade.resize((W, H))
+degrade_clip = degrade.point(lambda v: int(v * 0.35))
 noir = Image.new('RGB', (W, H), (8, 8, 12))
 
 # --- clips video de fond (vraies videos d animaux, une par scene) ---
@@ -166,7 +167,7 @@ def scene_couverture(s, t_reel, d_s, prog_global):
         cw, ch = int(W * 1.15 / z * 1.0), int(H * 1.15 / z * 1.0)
         x0 = (grand.width - cw) // 2; y0 = (grand.height - ch) // 2
         bg = grand.crop((x0, y0, x0 + cw, y0 + ch)).resize((W, H), Image.LANCZOS)
-    im = Image.composite(noir, bg, degrade).convert('RGBA')
+    im = Image.composite(noir, bg, degrade_clip if CLIPS else degrade).convert('RGBA')
     d = ImageDraw.Draw(im)
     barre_progression(d, prog_global)
     # pastille categorie
@@ -238,7 +239,7 @@ def scene_point(s, t_reel, d_s, num, prog_global, tt):
     d = ImageDraw.Draw(im)
     barre_progression(d, prog_global)
     x = 80
-    top = 430
+    top = 230 if CLIPS else 430
     # pastille numero (cercle couleur) qui « pop »
     eb = ease_back(t / 0.45)
     r = int(105 * max(0.05, eb))
