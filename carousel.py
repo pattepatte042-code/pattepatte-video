@@ -138,7 +138,7 @@ def couverture(s, i):
             coller(im, e, ((W - e.width) / 2, top + (bas - top - e.height) / 2))
     d = ImageDraw.Draw(im)
     # bouton « glisse »
-    fp = f(F_BOLD, 28); txt = 'Glisse'; w = d.textlength(txt, font=fp)
+    fp = f(F_BOLD, 28); txt = 'Swipe'; w = d.textlength(txt, font=fp)
     x1 = W - M - 24; x0 = x1 - w - 100; y0 = bas - 80
     d.rounded_rectangle([x0, y0, x1, y0 + 58], radius=29, fill=TXT)
     d.text((x0 + 28, y0 + 29), txt, font=fp, fill=(255, 255, 255), anchor='lm')
@@ -189,7 +189,7 @@ def fin(s, i):
         y += bloc(d, (M, y), s['titre_en'], F_REG, 32, W - 2 * M, tuple(int(c * 0.25 + 255 * 0.75) for c in ACC), 1.25, max_lignes=3) + 10
     # boutons d'action
     y = max(y + 40, H - 420)
-    for txt in ['💬  Réponds en commentaire', '💾  Enregistre pour plus tard', '📤  Envoie à un ami']:
+    for txt in ['💬  Answer in the comments', '💾  Save it for later', '📤  Send it to a friend']:
         lab = txt.split('  ', 1)[1]
         fp = f(F_BOLD, 34)
         d.rounded_rectangle([M, y, W - M, y + 86], radius=43, fill=(255, 255, 255))
