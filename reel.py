@@ -287,7 +287,7 @@ def scene_fin(s, t_reel, d_s, prog_global):
         for i, l in enumerate(le):
             d.text((W // 2, y + i * int(sze * 1.25)), l, font=fe, fill=PALE + (int(255 * a3),), anchor='ma')
     yb = 1180
-    for k, (ic, lab) in enumerate([('💬', 'Réponds en commentaire'), ('💾', 'Enregistre'), ('📤', 'Envoie à un ami')]):
+    for k, (ic, lab) in enumerate([('💬', 'Answer in the comments'), ('💾', 'Save it for later'), ('📤', 'Send it to a friend')]):
         dt = t - 1.2 - 0.25 * k
         if dt > 0:
             e = ease_back(dt / 0.4)
