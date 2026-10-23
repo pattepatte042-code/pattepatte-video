@@ -23,8 +23,8 @@ for U in ${VIDEO_URLS:-}; do
   [[ $k -ge 6 ]] && break
   if curl -fsSL --retry 4 --retry-delay 3 --max-time 90 -A "Mozilla/5.0 (pattepatte)" -o "tmp/clips/c$k.mp4" "$U"; then
     mkdir -p "tmp/clips/c$k"
-    ffmpeg -y -loglevel error -ss 0.8 -i "tmp/clips/c$k.mp4" -t 4 -an \
-      -vf "fps=30,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,eq=contrast=1.04:saturation=1.08" \
+    ffmpeg -y -loglevel error -ss 0.5 -i "tmp/clips/c$k.mp4" -t 4.5 -an \
+      -filter_complex "[0:v]fps=30,split[a][b];[a]scale=540:960:force_original_aspect_ratio=increase,crop=540:960,boxblur=18:2,eq=brightness=-0.10:saturation=1.25,scale=1080:1920[bg];[b]scale=1080:780:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:780,eq=contrast=1.05:saturation=1.10[fg];[bg][fg]overlay=0:1110" \
       -q:v 3 "tmp/clips/c$k/g%05d.jpg" || rm -rf "tmp/clips/c$k"
     rm -f "tmp/clips/c$k.mp4"; k=$((k+1))
   fi
