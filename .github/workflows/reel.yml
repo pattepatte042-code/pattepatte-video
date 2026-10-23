@@ -12,6 +12,10 @@ on:
         description: "Photo de fond"
         required: false
         default: ""
+      video_urls:
+        description: "Clips video de fond (Pixabay), separes par des espaces"
+        required: false
+        default: ""
 permissions:
   contents: write
 concurrency:
@@ -30,6 +34,7 @@ jobs:
           JOB_ID: ${{ inputs.job_id }}
           SPEC: ${{ inputs.spec }}
           IMAGE_URL: ${{ inputs.image_url }}
+          VIDEO_URLS: ${{ inputs.video_urls }}
         run: bash reel.sh
       - name: Publier (release "videos")
         env:
