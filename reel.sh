@@ -21,5 +21,5 @@ DUREE=$(cat tmp/frames/duree.txt)
 if python3 music.py "${DUREE}" "${JOB_ID}" tmp/musique.wav; then AUDIO=(-i tmp/musique.wav); else AUDIO=(-f lavfi -t "${DUREE}" -i anullsrc=r=44100:cl=stereo); fi
 ffmpeg -y -loglevel error -framerate 30 -i tmp/frames/f%05d.jpg "${AUDIO[@]}" -map 0:v -map 1:a -t "${DUREE}" \
   -c:v libx264 -preset medium -crf 20 -profile:v high -pix_fmt yuv420p -r 30 -c:a aac -b:a 128k -movflags +faststart "videos/E-${JOB_ID}.mp4"
-cp tmp/frames/f00080.jpg "videos/E-${JOB_ID}.jpg"
+cp tmp/frames/f00030.jpg "videos/E-${JOB_ID}.jpg"
 ls -la videos/
