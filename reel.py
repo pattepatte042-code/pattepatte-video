@@ -108,6 +108,31 @@ for y in range(H):
 degrade = degrade.resize((W, H))
 noir = Image.new('RGB', (W, H), (8, 8, 12))
 
+# --- clips video de fond (vraies videos d animaux, une par scene) ---
+CLIPS = []
+_cd = os.environ.get('CLIPS_DIR', '')
+if _cd and os.path.isdir(_cd):
+    for _nom in sorted(os.listdir(_cd)):
+        _p = os.path.join(_cd, _nom)
+        if os.path.isdir(_p):
+            _fr = sorted(x for x in os.listdir(_p) if x.endswith('.jpg'))
+            if len(_fr) >= 15:
+                CLIPS.append((_p, _fr))
+LUT = [min(255, int(v * 1.05 + 4)) for v in range(256)] + [min(255, int(v * 1.01 + 2)) for v in range(256)] + [int(v * 0.95) for v in range(256)]
+def image_clip(k, t):
+    p, fr = CLIPS[k % len(CLIPS)]
+    L = len(fr); i = int(t * FPS) % (2 * L - 2)
+    if i >= L:
+        i = 2 * L - 2 - i
+    im = Image.open(os.path.join(p, fr[i])).convert('RGB')
+    if im.size != (W, H):
+        im = ImageOps.fit(im, (W, H), Image.BILINEAR)
+    return ImageEnhance.Color(im).enhance(1.15).point(LUT)
+def zoom_centre(im, z):
+    cw, ch = int(W / z), int(H / z)
+    x0, y0 = (W - cw) // 2, (H - ch) // 2
+    return im.crop((x0, y0, x0 + cw, y0 + ch)).resize((W, H), Image.BILINEAR)
+
 D0 = ImageDraw.Draw(Image.new('RGB', (10, 10)))
 frames = []
 
@@ -135,9 +160,12 @@ for s in slides:
 def scene_couverture(s, t_reel, d_s, prog_global):
     z = 1.0 + 0.22 * (1 - ease_out(t_reel / 0.45)) + 0.06 * (t_reel / d_s)  # zoom choc au debut
     t = t_reel + 1.7  # accroche visible des la 1re image
-    cw, ch = int(W * 1.15 / z * 1.0), int(H * 1.15 / z * 1.0)
-    x0 = (grand.width - cw) // 2; y0 = (grand.height - ch) // 2
-    bg = grand.crop((x0, y0, x0 + cw, y0 + ch)).resize((W, H), Image.LANCZOS)
+    if CLIPS:
+        bg = zoom_centre(image_clip(0, t_reel), z)
+    else:
+        cw, ch = int(W * 1.15 / z * 1.0), int(H * 1.15 / z * 1.0)
+        x0 = (grand.width - cw) // 2; y0 = (grand.height - ch) // 2
+        bg = grand.crop((x0, y0, x0 + cw, y0 + ch)).resize((W, H), Image.LANCZOS)
     im = Image.composite(noir, bg, degrade).convert('RGBA')
     d = ImageDraw.Draw(im)
     barre_progression(d, prog_global)
@@ -187,7 +215,10 @@ def scene_couverture(s, t_reel, d_s, prog_global):
     signature(d)
     return im
 
-def fond_photo(tt, sombre):
+def fond_photo(tt, sombre, clip=None, t_loc=0.0):
+    if CLIPS and clip is not None:
+        bg = zoom_centre(image_clip(clip, t_loc), 1.0 + 0.05 * min(1.0, t_loc / 3.0))
+        return ImageEnhance.Brightness(bg).enhance(sombre).convert('RGBA')
     z = 1.0 + 0.12 * (tt / TOTAL)
     cw, ch = int(W * 1.15 / z), int(H * 1.15 / z)
     x0 = (grand.width - cw) // 2 + int(30 * math.sin(tt * 0.6)); y0 = (grand.height - ch) // 2
@@ -203,7 +234,7 @@ def ombre_texte(d, xy, txt, fnt, fill, a):
 
 def scene_point(s, t_reel, d_s, num, prog_global, tt):
     t = t_reel * 1.8 + 0.2  # animations rapides
-    im = fond_photo(tt, 1.0)
+    im = fond_photo(tt, 1.0, num, t_reel)
     d = ImageDraw.Draw(im)
     barre_progression(d, prog_global)
     x = 80
