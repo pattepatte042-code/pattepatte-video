@@ -9,6 +9,9 @@ for p in Bold Medium; do
   curl -fsSL --retry 4 -o "polices/Poppins-${p}.ttf" "https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-${p}.ttf" || true
 done
 cp polices/*.ttf "$HOME/.fonts/" 2>/dev/null || true; fc-cache -f >/dev/null 2>&1 || true
+for f in kokoro-v1.0.onnx voices-v1.0.bin; do
+  [ -f "$f" ] || curl -fsSL --retry 4 -o "$f" "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/$f"
+done
 python3 parle.py tmp/parle
 DUREE=$(cat tmp/parle/duree.txt)
 gh release download clips-ia -p "IA-${CLIPS_JOB}-c*.mp4" -D tmp/clips --clobber
