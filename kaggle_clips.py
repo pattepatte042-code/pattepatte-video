@@ -2,6 +2,8 @@
 # Les consignes (PROMPTS) sont ajoutees en tete de ce fichier par GitHub Actions avant l envoi.
 import os, sys, json, time, subprocess, traceback
 os.environ.setdefault('HF_HOME', '/tmp/hf')
+os.environ.setdefault('PYTORCH_CUDA_ALLOC_CONF', 'expandable_segments:True')
+import gc
 DEBUT = time.time()
 JOURNAL = {'etapes': [], 'clips': []}
 OUT = '/kaggle/working/clips'
@@ -21,14 +23,20 @@ try:
     from diffusers.utils import export_to_video
     note('gpu : %s' % (torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'AUCUN'))
     MID = 'Wan-AI/Wan2.2-TI2V-5B-Diffusers'
-    dt = torch.bfloat16 if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else torch.float16
+    dt = torch.bfloat16 if REGLAGES.get('bf16') else torch.float16
     vae = AutoencoderKLWan.from_pretrained(MID, subfolder='vae', torch_dtype=torch.float32)
     pipe = WanPipeline.from_pretrained(MID, vae=vae, torch_dtype=dt)
+    try:
+        pipe.transformer.enable_layerwise_casting(storage_dtype=torch.float8_e4m3fn, compute_dtype=dt)
+        note('transformer stocke en fp8')
+    except Exception as e:
+        note('fp8 impossible : %s' % str(e)[:150])
     pipe.enable_model_cpu_offload()
     try:
         pipe.vae.enable_tiling()
-    except Exception:
-        pass
+        note('vae en tuiles')
+    except Exception as e:
+        note('tuiles vae impossibles : %s' % str(e)[:150])
     note('modele charge (%s)' % dt)
     NEG = ('blurry, low quality, distorted, deformed animal, extra legs, extra heads, bad anatomy, text, watermark, logo, '
            'people, human, hands, static, frozen, cartoon, ugly')
@@ -38,13 +46,15 @@ try:
             img = pipe(prompt=p, negative_prompt=NEG, height=REGLAGES.get('h', 832), width=REGLAGES.get('w', 480),
                        num_frames=REGLAGES.get('frames', 73), num_inference_steps=REGLAGES.get('steps', 30),
                        guidance_scale=5.0, generator=torch.Generator('cpu').manual_seed(1000 + k)).frames[0]
+            import numpy as np
+            moy = float(np.mean(np.asarray(img[len(img) // 2])))
             f = os.path.join(OUT, 'c%d.mp4' % k)
             export_to_video(img, f, fps=24)
-            JOURNAL['clips'].append({'k': k, 'fichier': 'c%d.mp4' % k, 'secondes': round(time.time() - t0, 1), 'prompt': p})
-            note('clip %d fait en %.0f s' % (k, time.time() - t0))
+            JOURNAL['clips'].append({'k': k, 'fichier': 'c%d.mp4' % k, 'secondes': round(time.time() - t0, 1), 'moyenne_pixels': moy, 'prompt': p})
+            note('clip %d fait en %.0f s (luminosite %.3f, memoire max %.1f Go)' % (k, time.time() - t0, moy, torch.cuda.max_memory_allocated() / 1e9))
         except Exception as e:
             note('clip %d ERREUR : %s' % (k, str(e)[:300]))
-            torch.cuda.empty_cache()
+        gc.collect(); torch.cuda.empty_cache()
         if time.time() - DEBUT > REGLAGES.get('max_s', 7200):
             note('temps maximum atteint, arret')
             break
