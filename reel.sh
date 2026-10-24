@@ -31,13 +31,22 @@ for U in ${VIDEO_URLS:-}; do
 done
 set +f
 echo "clips video : $k"
-CLIPS_DIR=tmp/clips POLICES_DIR=polices python3 reel.py tmp/spec.json "${PHOTO:-aucune}" tmp/frames
+# voix off (Kokoro, Apache 2.0) : une phrase lue par diapo, la duree des diapos suit la voix
+SPECF=tmp/spec.json
+if [[ "${VOIX_OFF:-0}" == "1" ]]; then
+  for f in kokoro-v1.0.onnx voices-v1.0.bin; do
+    [ -f "$f" ] || curl -fsSL --retry 4 -o "$f" "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/$f" || true
+  done
+  if VOIX="${VOIX_NOM:-am_puck}" python3 voix_slides.py tmp/spec.json tmp/voix.wav tmp/spec_voix.json; then SPECF=tmp/spec_voix.json; else echo "voix off impossible, Reel sans voix"; fi
+fi
+CLIPS_DIR=tmp/clips POLICES_DIR=polices python3 reel.py "$SPECF" "${PHOTO:-aucune}" tmp/frames
 DUREE=$(cat tmp/frames/duree.txt)
 if python3 music.py "${DUREE}" "${JOB_ID}" tmp/musique.wav; then MUS=(-i tmp/musique.wav); else MUS=(-f lavfi -t "${DUREE}" -i anullsrc=r=44100:cl=stereo); fi
 # post-production son : bruitages originaux + mixage + normalisation du volume (-14 LUFS, standard des reseaux)
 if python3 sfx.py tmp/frames/coupes.txt "${DUREE}" tmp/sfx.wav; then SFX=(-i tmp/sfx.wav); else SFX=(-f lavfi -t "${DUREE}" -i anullsrc=r=44100:cl=stereo); fi
-ffmpeg -y -loglevel error -framerate 30 -i tmp/frames/f%05d.jpg "${MUS[@]}" "${SFX[@]}" \
-  -filter_complex "[1:a]volume=0.8[m];[2:a]volume=0.9[s];[m][s]amix=inputs=2:duration=first:normalize=0,afade=t=out:st=$(python3 -c "print(max(0,${DUREE}-0.6))"):d=0.6,loudnorm=I=-14:TP=-1.5:LRA=11[a]" \
+if [[ "$SPECF" == tmp/spec_voix.json ]]; then VO=(-i tmp/voix.wav); MIXF="[1:a]volume=0.22[m];[2:a]volume=0.5[s];[3:a]aresample=44100,pan=stereo|c0=c0|c1=c0,volume=1.0[v];[m][s][v]amix=inputs=3:duration=first:normalize=0"; else VO=(); MIXF="[1:a]volume=0.8[m];[2:a]volume=0.9[s];[m][s]amix=inputs=2:duration=first:normalize=0"; fi
+ffmpeg -y -loglevel error -framerate 30 -i tmp/frames/f%05d.jpg "${MUS[@]}" "${SFX[@]}" "${VO[@]}" \
+  -filter_complex "${MIXF},afade=t=out:st=$(python3 -c "print(max(0,${DUREE}-0.6))"):d=0.6,loudnorm=I=-14:TP=-1.5:LRA=11[a]" \
   -map 0:v -map "[a]" -t "${DUREE}" \
   -c:v libx264 -preset medium -crf 19 -profile:v high -pix_fmt yuv420p -r 30 -c:a aac -b:a 160k -ar 44100 -movflags +faststart "videos/E-${JOB_ID}.mp4"
 cp tmp/frames/f00030.jpg "videos/E-${JOB_ID}.jpg"
