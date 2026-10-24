@@ -17,33 +17,28 @@ phrases = [p.strip() for p in re.split(r'\n+|(?<=[.!?])\s+', texte) if p.strip()
 
 audio, mots, t = [], [], 0.25
 audio.append(np.zeros(int(SR * 0.25), dtype=np.float32))
-from kokoro import KPipeline
-pipe = KPipeline(lang_code='a')
+from kokoro_onnx import Kokoro
+moteur = Kokoro(os.environ.get('KOKORO_MODELE', 'kokoro-v1.0.onnx'), os.environ.get('KOKORO_VOIX', 'voices-v1.0.bin'))
 for ph in phrases:
-    for r in pipe(ph, voice=voix, speed=vitesse, split_pattern=None):
-        a = r.audio
-        a = a.cpu().numpy() if hasattr(a, 'cpu') else np.asarray(a)
-        a = a.astype(np.float32).reshape(-1)
-        d = len(a) / SR
-        toks = list(getattr(r, 'tokens', None) or [])
-        bons = []
-        for tk in toks:
-            txt = str(getattr(tk, 'text', '') or '')
-            s, e = getattr(tk, 'start_ts', None), getattr(tk, 'end_ts', None)
-            if any(c.isalnum() for c in txt) and s is not None:
-                bons.append({'w': txt, 's': round(t + float(s), 3), 'e': round(t + float(e if e is not None else s + 0.3), 3)})
-            elif txt.strip() and bons:
-                bons[-1]['w'] += txt.strip()
-        if not bons:
-            # pas d horodatage : repartition selon la longueur des mots
-            ws = ph.split()
-            tot = sum(len(w) + 2 for w in ws) or 1
-            x = t
-            for w in ws:
-                dd = d * (len(w) + 2) / tot
-                bons.append({'w': w, 's': round(x, 3), 'e': round(x + dd, 3)}); x += dd
-        mots += bons
-        audio.append(a); t += d
+    a, sr = moteur.create(ph, voice=voix, speed=vitesse, lang='en-us')
+    a = np.asarray(a, dtype=np.float32).reshape(-1)
+    if sr != SR:
+        x = np.linspace(0, len(a) - 1, int(len(a) * SR / sr))
+        a = np.interp(x, np.arange(len(a)), a).astype(np.float32)
+    # enlever les silences au debut et a la fin de la phrase
+    nz = np.where(np.abs(a) > 0.01)[0]
+    if len(nz):
+        a = a[max(0, nz[0] - int(SR * 0.03)): nz[-1] + int(SR * 0.05)]
+    d = len(a) / SR
+    # horodatage des mots : reparti selon la longueur (syllabes approx.)
+    ws = ph.split()
+    poids = [max(1, len(re.findall(r'[aeiouy]+', w.lower()))) + 0.4 for w in ws]
+    tot = sum(poids) or 1
+    x = t
+    for w, pw in zip(ws, poids):
+        dd = d * pw / tot
+        mots.append({'w': w, 's': round(x, 3), 'e': round(x + dd, 3)}); x += dd
+    audio.append(a); t += d
     audio.append(np.zeros(int(SR * 0.22), dtype=np.float32)); t += 0.22
 audio.append(np.zeros(int(SR * 0.4), dtype=np.float32)); t += 0.4
 sig = np.concatenate(audio)
