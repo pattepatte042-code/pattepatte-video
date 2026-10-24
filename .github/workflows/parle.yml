@@ -1,0 +1,59 @@
+name: Animal presentateur
+on:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: "Identifiant"
+        required: true
+      texte:
+        description: "Texte dit par l animal (anglais canadien)"
+        required: true
+      clips_job:
+        description: "job_id des clips IA (release clips-ia)"
+        required: true
+      voix:
+        description: "Voix Kokoro (am_michael, am_puck, af_heart, af_bella...)"
+        required: false
+        default: "am_puck"
+      vitesse:
+        description: "Vitesse de parole"
+        required: false
+        default: "1.05"
+      hauteur:
+        description: "Hauteur de voix (1.0 normal, 1.12 plus aigu)"
+        required: false
+        default: "1.0"
+permissions:
+  contents: write
+concurrency:
+  group: rendu-video
+  cancel-in-progress: false
+jobs:
+  parle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Installer les outils
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg espeak-ng fontconfig
+          pip install -q "kokoro>=0.9.4" numpy
+      - name: Fabriquer
+        env:
+          JOB_ID: ${{ inputs.job_id }}
+          TEXTE: ${{ inputs.texte }}
+          CLIPS_JOB: ${{ inputs.clips_job }}
+          VOIX: ${{ inputs.voix }}
+          VITESSE: ${{ inputs.vitesse }}
+          HAUTEUR: ${{ inputs.hauteur }}
+          GH_TOKEN: ${{ github.token }}
+        run: bash parle.sh
+      - name: Publier (release "videos")
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view videos >/dev/null 2>&1 || gh release create videos --title "Videos Patte a Patte" --notes "Videos generees automatiquement."
+          for f in videos/*; do gh release upload videos "$f" --clobber; done
