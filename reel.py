@@ -155,7 +155,7 @@ TOTAL = 0.0
 plan = []
 for s in slides:
     t = s.get('type', 'point')
-    dur = 1.6 if t == 'couverture' else (2.6 if t == 'fin' else 2.9)
+    dur = float(s['duree']) if s.get('duree') else (1.6 if t == 'couverture' else (2.6 if t == 'fin' else 2.9))
     plan.append((s, t, TOTAL, dur)); TOTAL += dur
 
 def scene_couverture(s, t_reel, d_s, prog_global):
