@@ -11,7 +11,7 @@ p = json.loads(os.environ['PROMPTS'])
 assert isinstance(p, list) and p, 'prompts vides'
 p = [str(x).replace('\n', ' ')[:600] for x in p][:6]
 r = json.loads(os.environ.get('REGLAGES') or '{}')
-r = {k: v for k, v in r.items() if k in ('h', 'w', 'frames', 'steps', 'max_s') and isinstance(v, int)}
+r = {k: v for k, v in r.items() if k in ('h', 'w', 'frames', 'steps', 'max_s', 'bf16') and isinstance(v, int)}
 src = open('kaggle_clips.py', encoding='utf-8').read()
 open('k/clips.py', 'w', encoding='utf-8').write('PROMPTS = %s\nREGLAGES = %s\n' % (json.dumps(p), json.dumps(r)) + src)
 u = os.environ['KAGGLE_USERNAME']
