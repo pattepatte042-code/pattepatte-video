@@ -1,0 +1,34 @@
+name: Clips IA (Kaggle)
+on:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: "Identifiant"
+        required: true
+      prompts:
+        description: "Liste JSON des descriptions de clips (anglais)"
+        required: true
+      reglages:
+        description: "Reglages JSON (h, w, frames, steps, max_s)"
+        required: false
+        default: "{}"
+permissions:
+  contents: write
+concurrency:
+  group: clips-ia
+  cancel-in-progress: false
+jobs:
+  clips:
+    runs-on: ubuntu-latest
+    timeout-minutes: 200
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fabriquer sur Kaggle
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+          JOB_ID: ${{ inputs.job_id }}
+          PROMPTS: ${{ inputs.prompts }}
+          REGLAGES: ${{ inputs.reglages }}
+          GH_TOKEN: ${{ github.token }}
+        run: bash clips_ia.sh
