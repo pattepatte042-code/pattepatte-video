@@ -16,6 +16,14 @@ on:
         description: "Clips video de fond (Pixabay), separes par des espaces"
         required: false
         default: ""
+      voix_off:
+        description: "1 = voix off qui lit chaque diapo"
+        required: false
+        default: "0"
+      voix:
+        description: "Voix Kokoro (am_puck, am_michael, af_heart...)"
+        required: false
+        default: "am_puck"
 permissions:
   contents: write
 concurrency:
@@ -28,13 +36,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Installer les outils
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg python3-numpy python3-pil fonts-dejavu-core fonts-noto-color-emoji
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg python3-numpy python3-pil fonts-dejavu-core fonts-noto-color-emoji espeak-ng
+      - name: Installer la voix
+        run: python3 -m pip install --user --break-system-packages -q kokoro-onnx || echo "voix indisponible"
       - name: Fabriquer
         env:
           JOB_ID: ${{ inputs.job_id }}
           SPEC: ${{ inputs.spec }}
           IMAGE_URL: ${{ inputs.image_url }}
           VIDEO_URLS: ${{ inputs.video_urls }}
+          VOIX_OFF: ${{ inputs.voix_off }}
+          VOIX_NOM: ${{ inputs.voix }}
         run: bash reel.sh
       - name: Publier (release "videos")
         env:
