@@ -13,17 +13,33 @@ texte = os.environ.get('TEXTE', '').strip()
 if texte in ('-', '.', 'none', 'aucun'):
     texte = ''  # histoire sans parole : seulement la musique et les sons
 voix = os.environ.get('VOIX', 'am_michael')
+voix2 = os.environ.get('VOIX2', '') or 'af_heart'
 vitesse = float(os.environ.get('VITESSE', '1.0') or 1.0)
 SR = 24000
-phrases = [p.strip() for p in re.split(r'\n+|(?<=[.!?])\s+', texte) if p.strip()]
+# Dialogue a 2 voix : « 1: phrase » = VOIX (personnage 1), « 2: phrase » = VOIX2 (personnage 2).
+# Sans marqueur, tout est dit par VOIX.
+morceaux = re.split(r'(?:^|\s)([12])\s*:\s', texte)
+repliques = []
+if len(morceaux) > 1:
+    if morceaux[0].strip():
+        repliques.append(('1', morceaux[0].strip()))
+    for k in range(1, len(morceaux) - 1, 2):
+        repliques.append((morceaux[k], morceaux[k + 1].strip()))
+else:
+    repliques = [('1', texte)]
+phrases = []
+for qui, txt in repliques:
+    for p in re.split(r'\n+|(?<=[.!?])\s+', txt):
+        if p.strip():
+            phrases.append((qui, p.strip()))
 
 audio, mots, t = [], [], 0.25
 audio.append(np.zeros(int(SR * 0.25), dtype=np.float32))
 if phrases:
     from kokoro_onnx import Kokoro
 moteur = None if not phrases else Kokoro(os.environ.get('KOKORO_MODELE', 'kokoro-v1.0.onnx'), os.environ.get('KOKORO_VOIX', 'voices-v1.0.bin'))
-for ph in phrases:
-    a, sr = moteur.create(ph, voice=voix, speed=vitesse, lang='en-us')
+for qui, ph in phrases:
+    a, sr = moteur.create(ph, voice=(voix2 if qui == '2' else voix), speed=vitesse, lang='en-us')
     a = np.asarray(a, dtype=np.float32).reshape(-1)
     if sr != SR:
         x = np.linspace(0, len(a) - 1, int(len(a) * SR / sr))
@@ -40,7 +56,7 @@ for ph in phrases:
     x = t
     for w, pw in zip(ws, poids):
         dd = d * pw / tot
-        mots.append({'w': w, 's': round(x, 3), 'e': round(x + dd, 3)}); x += dd
+        mots.append({'w': w, 's': round(x, 3), 'e': round(x + dd, 3), 'q': qui}); x += dd
     audio.append(a); t += d
     audio.append(np.zeros(int(SR * 0.22), dtype=np.float32)); t += 0.22
 audio.append(np.zeros(int(SR * 0.4), dtype=np.float32)); t += 0.4
@@ -60,10 +76,13 @@ def ts(x):
     return '%d:%02d:%05.2f' % (h, m, s)
 def propre(w):
     return w.replace('{', '').replace('}', '').replace('\\', '')
-ACC = os.environ.get('COULEUR_ASS', '&H0000D7FF')  # jaune (BGR)
+ACC = os.environ.get('COULEUR_ASS', '&H0000D7FF')  # jaune (BGR) : personnage 1
+ACC2 = '&H00F0C800'  # bleu-turquoise (BGR) : personnage 2
 lignes = []
 groupes, g = [], []
 for i, m in enumerate(mots):
+    if g and g[-1].get('q') != m.get('q'):
+        groupes.append(g); g = []
     g.append(m)
     fin = m['w'][-1:] in '.!?,' or len(g) == 3
     if fin:
@@ -78,7 +97,7 @@ for gi, g in enumerate(groupes):
         for j, mm in enumerate(g):
             w = propre(mm['w']).upper()
             if j == k:
-                parts.append('{\\c%s\\fscx112\\fscy112}%s{\\c&H00FFFFFF&\\fscx100\\fscy100}' % (ACC, w))
+                parts.append('{\\c%s\\fscx112\\fscy112}%s{\\c&H00FFFFFF&\\fscx100\\fscy100}' % (ACC2 if mm.get('q') == '2' else ACC, w))
             else:
                 parts.append(w)
         lignes.append('Dialogue: 0,%s,%s,Mots,,0,0,0,,%s' % (ts(deb), ts(fin), ' '.join(parts)))
