@@ -93,12 +93,16 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
 Style: Mots,Poppins,92,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,7,3,2,70,70,560,1
 Style: Petit,Poppins,34,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,3,1,8,40,40,60,1
 Style: Sign,Poppins,36,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,3,1,2,40,40,120,1
+Style: Hook,Poppins,84,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,7,3,8,60,60,240,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
 ass += 'Dialogue: 1,0:00:00.00,%s,Petit,,0,0,0,,AI-generated video\n' % ts(t + 1)
 ass += 'Dialogue: 1,0:00:00.00,%s,Sign,,0,0,0,,@pattepatte2026\n' % ts(t + 1)
+HOOK = propre(os.environ.get('HOOK', '').strip())[:70]
+if HOOK:
+    ass += 'Dialogue: 2,0:00:00.00,0:00:03.20,Hook,,0,0,0,,{\\fad(0,250)}%s\n' % HOOK
 ass += '\n'.join(lignes) + '\n'
 open(os.path.join(out, 'soustitres.ass'), 'w', encoding='utf-8').write(ass)
 print('voix ok', round(t, 2), 's,', len(mots), 'mots')
