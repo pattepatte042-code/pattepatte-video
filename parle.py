@@ -10,6 +10,8 @@ import numpy as np
 out = sys.argv[1] if len(sys.argv) > 1 else 'tmp/parle'
 os.makedirs(out, exist_ok=True)
 texte = os.environ.get('TEXTE', '').strip()
+if texte in ('-', '.', 'none', 'aucun'):
+    texte = ''  # histoire sans parole : seulement la musique et les sons
 voix = os.environ.get('VOIX', 'am_michael')
 vitesse = float(os.environ.get('VITESSE', '1.0') or 1.0)
 SR = 24000
@@ -17,8 +19,9 @@ phrases = [p.strip() for p in re.split(r'\n+|(?<=[.!?])\s+', texte) if p.strip()
 
 audio, mots, t = [], [], 0.25
 audio.append(np.zeros(int(SR * 0.25), dtype=np.float32))
-from kokoro_onnx import Kokoro
-moteur = Kokoro(os.environ.get('KOKORO_MODELE', 'kokoro-v1.0.onnx'), os.environ.get('KOKORO_VOIX', 'voices-v1.0.bin'))
+if phrases:
+    from kokoro_onnx import Kokoro
+moteur = None if not phrases else Kokoro(os.environ.get('KOKORO_MODELE', 'kokoro-v1.0.onnx'), os.environ.get('KOKORO_VOIX', 'voices-v1.0.bin'))
 for ph in phrases:
     a, sr = moteur.create(ph, voice=voix, speed=vitesse, lang='en-us')
     a = np.asarray(a, dtype=np.float32).reshape(-1)
@@ -41,6 +44,9 @@ for ph in phrases:
     audio.append(a); t += d
     audio.append(np.zeros(int(SR * 0.22), dtype=np.float32)); t += 0.22
 audio.append(np.zeros(int(SR * 0.4), dtype=np.float32)); t += 0.4
+DMIN = float(os.environ.get('DUREE_MIN', '0') or 0)
+if t < DMIN:
+    audio.append(np.zeros(int(SR * (DMIN - t)), dtype=np.float32)); t = DMIN
 sig = np.concatenate(audio)
 sig = sig / max(1e-6, float(np.max(np.abs(sig)))) * 0.92
 with wave.open(os.path.join(out, 'voix.wav'), 'wb') as w:
