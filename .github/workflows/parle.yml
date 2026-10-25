@@ -23,6 +23,10 @@ on:
         description: "Hauteur de voix (1.0 normal, 1.12 plus aigu)"
         required: false
         default: "1.0"
+      voix2:
+        description: "Voix du personnage 2 dans un dialogue (lignes 2: ...)"
+        required: false
+        default: "af_heart"
       hook:
         description: "Accroche a l ecran pendant les 3 premieres secondes (7 mots max)"
         required: false
@@ -51,6 +55,7 @@ jobs:
           TEXTE: ${{ inputs.texte }}
           CLIPS_JOB: ${{ inputs.clips_job }}
           VOIX: ${{ inputs.voix }}
+          VOIX2: ${{ inputs.voix2 }}
           VITESSE: ${{ inputs.vitesse }}
           HAUTEUR: ${{ inputs.hauteur }}
           HOOK: ${{ inputs.hook }}
