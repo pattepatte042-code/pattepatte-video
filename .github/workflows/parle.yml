@@ -23,6 +23,10 @@ on:
         description: "Hauteur de voix (1.0 normal, 1.12 plus aigu)"
         required: false
         default: "1.0"
+      hook:
+        description: "Accroche a l ecran pendant les 3 premieres secondes (7 mots max)"
+        required: false
+        default: ""
 permissions:
   contents: write
 concurrency:
@@ -49,6 +53,7 @@ jobs:
           VOIX: ${{ inputs.voix }}
           VITESSE: ${{ inputs.vitesse }}
           HAUTEUR: ${{ inputs.hauteur }}
+          HOOK: ${{ inputs.hook }}
           GH_TOKEN: ${{ github.token }}
         run: bash parle.sh
       - name: Publier (release "videos")
