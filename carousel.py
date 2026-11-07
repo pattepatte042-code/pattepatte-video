@@ -46,20 +46,37 @@ slides = spec['slides'][:8]
 N = len(slides)
 BLANC = (255, 255, 255)
 
-PHOTO = None
-if photo:
+def ouvrir(chemin):
     try:
-        PHOTO = ImageOps.exif_transpose(Image.open(photo)).convert('RGB')
+        return ImageOps.exif_transpose(Image.open(chemin)).convert('RGB')
     except Exception:
-        PHOTO = None
+        return None
+
+PHOTO = ouvrir(photo) if photo else None
+# photos propres a chaque image (vraies photos differentes) : PHOTOS_DIR/photo_<k>.jpg (k = 1..N)
+PHOTOS_DIR = os.environ.get('PHOTOS_DIR', '')
+PHOTOS = {}
+if PHOTOS_DIR:
+    for k in range(1, 9):
+        p = os.path.join(PHOTOS_DIR, 'photo_%d.jpg' % k)
+        if os.path.exists(p):
+            im_k = ouvrir(p)
+            if im_k is not None:
+                PHOTOS[k - 1] = im_k
+if PHOTO is None and PHOTOS:
+    PHOTO = PHOTOS[min(PHOTOS)]
 
 # cadrages differents pour chaque image (centre x, centre y, zoom)
 CADRAGES = [(0.5, 0.45, 1.0), (0.3, 0.4, 1.35), (0.7, 0.5, 1.35), (0.5, 0.3, 1.6), (0.35, 0.6, 1.5), (0.65, 0.35, 1.5), (0.5, 0.55, 1.25), (0.5, 0.45, 1.1)]
 
 def fond_photo(i, assombrir=0.0, flou=0):
     """Photo plein cadre (1080x1350) avec un cadrage propre a l'image i."""
-    cx, cy, z = CADRAGES[i % len(CADRAGES)]
-    p = PHOTO
+    if i in PHOTOS:
+        cx, cy, z = 0.5, 0.45, 1.0  # vraie photo propre a cette image : cadrage entier
+        p = PHOTOS[i]
+    else:
+        cx, cy, z = CADRAGES[i % len(CADRAGES)]
+        p = PHOTO
     if z > 1.0:
         w, h = p.size
         cw, ch = int(w / z), int(h / z)
