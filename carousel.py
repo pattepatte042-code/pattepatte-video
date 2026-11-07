@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Fabrique de carrousels Patte a Patte (1080x1350, fond uni colore, gros chiffres, icones).
+"""Fabrique de carrousels Patte a Patte (1080x1350).
+Version 2 : la photo de l'animal sert d'ARRIERE-PLAN sur toutes les images
+(cadrages differents a chaque image), avec une carte blanche lisible pour le texte.
+Sans photo : ancien style (fond uni colore).
 Usage : python3 carousel.py spec.json sortie_dir JOB [photo.jpg]
 spec = {"theme": "menthe|corail|ciel|soleil|lavande",
         "categorie": "CHIEN",
@@ -9,8 +12,8 @@ spec = {"theme": "menthe|corail|ciel|soleil|lavande",
           {"type": "fin", "titre": "...", "question": "...", "titre_en": "...", "emoji": "💬"}]}
 Sortie : C-JOB-1.jpg ... C-JOB-n.jpg
 """
-import sys, os, json, textwrap
-from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageFilter
+import sys, os, json
+from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageFilter, ImageEnhance
 
 W, H = 1080, 1350
 M = 84  # marge
@@ -41,6 +44,44 @@ THEMES = {  # fond, carte, accent, texte, texte doux
 FOND, CARTE, ACC, TXT, DOUX = THEMES.get(spec.get('theme', 'menthe'), THEMES['menthe'])
 slides = spec['slides'][:8]
 N = len(slides)
+BLANC = (255, 255, 255)
+
+PHOTO = None
+if photo:
+    try:
+        PHOTO = ImageOps.exif_transpose(Image.open(photo)).convert('RGB')
+    except Exception:
+        PHOTO = None
+
+# cadrages differents pour chaque image (centre x, centre y, zoom)
+CADRAGES = [(0.5, 0.45, 1.0), (0.3, 0.4, 1.35), (0.7, 0.5, 1.35), (0.5, 0.3, 1.6), (0.35, 0.6, 1.5), (0.65, 0.35, 1.5), (0.5, 0.55, 1.25), (0.5, 0.45, 1.1)]
+
+def fond_photo(i, assombrir=0.0, flou=0):
+    """Photo plein cadre (1080x1350) avec un cadrage propre a l'image i."""
+    cx, cy, z = CADRAGES[i % len(CADRAGES)]
+    p = PHOTO
+    if z > 1.0:
+        w, h = p.size
+        cw, ch = int(w / z), int(h / z)
+        x0 = int(min(max(cx * w - cw / 2, 0), w - cw)); y0 = int(min(max(cy * h - ch / 2, 0), h - ch))
+        p = p.crop((x0, y0, x0 + cw, y0 + ch))
+    p = ImageOps.fit(p, (W, H), Image.LANCZOS, centering=(0.5, 0.45))
+    p = ImageEnhance.Color(p).enhance(1.12)
+    if flou:
+        p = p.filter(ImageFilter.GaussianBlur(flou))
+    im = p.convert('RGBA')
+    if assombrir:
+        im.alpha_composite(Image.new('RGBA', (W, H), (0, 0, 0, int(255 * assombrir))))
+    return im
+
+def degrade(im, haut, bas, couleur, a0, a1):
+    """Degrade vertical de transparence a0 -> a1 entre haut et bas."""
+    g = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(g)
+    for y in range(int(haut), int(bas)):
+        a = a0 + (a1 - a0) * (y - haut) / max(1, bas - haut)
+        d.line([(0, y), (W, y)], fill=couleur + (int(a),))
+    im.alpha_composite(g)
 
 def emoji_img(ch, taille):
     if not EMOJI or not ch:
@@ -70,7 +111,7 @@ def wrap_px(d, texte, fnt, larg):
         lignes.append(cur)
     return lignes
 
-def bloc(d, xy, texte, chemin, sz, larg, couleur, interligne=1.12, max_lignes=6, min_sz=30, dessine=True):
+def bloc(d, xy, texte, chemin, sz, larg, couleur, interligne=1.12, max_lignes=6, min_sz=30, dessine=True, ombre=False):
     """Ecrit un paragraphe ; reduit la taille si trop de lignes. Retourne la hauteur utilisee."""
     while True:
         fnt = f(chemin, sz)
@@ -81,26 +122,26 @@ def bloc(d, xy, texte, chemin, sz, larg, couleur, interligne=1.12, max_lignes=6,
     y = xy[1]
     for l in lignes[:max_lignes]:
         if dessine:
+            if ombre:
+                d.text((xy[0] + 3, y + 3), l, font=fnt, fill=(0, 0, 0, 150))
             d.text((xy[0], y), l, font=fnt, fill=couleur)
         y += int(sz * interligne)
     return y - xy[1]
 
-def pied(d, i):
+def pied(d, i, couleur=None, fond_points=None):
+    couleur = couleur or DOUX
     fp = f(F_MED, 26)
-    d.text((M, H - 70), '@pattepatte2026', font=fp, fill=DOUX, anchor='lm')
-    # points de pagination
+    d.text((M, H - 70), '@pattepatte2026', font=fp, fill=couleur, anchor='lm')
     x0 = W - M - (N - 1) * 26
     for k in range(N):
         r = 7 if k == i else 5
-        c = ACC if k == i else (*DOUX, )
-        d.ellipse([x0 + k * 26 - r, H - 70 - r, x0 + k * 26 + r, H - 70 + r], fill=c if k == i else tuple(int(a * 0.5 + b * 0.5) for a, b in zip(DOUX, FOND)))
+        inactif = fond_points or tuple(int(a * 0.5 + b * 0.5) for a, b in zip(DOUX, FOND))
+        d.ellipse([x0 + k * 26 - r, H - 70 - r, x0 + k * 26 + r, H - 70 + r], fill=ACC if k == i else inactif)
 
-def pastille(d, xy, texte, fond, couleur, sz=28, ancre_droite=False):
+def pastille(d, xy, texte, fond, couleur, sz=28):
     fp = f(F_BOLD, sz)
     w = d.textlength(texte, font=fp)
     x, y = xy
-    if ancre_droite:
-        x = x - w - 44
     d.rounded_rectangle([x, y, x + w + 44, y + sz + 26], radius=(sz + 26) // 2, fill=fond)
     d.text((x + 22, y + (sz + 26) / 2), texte, font=fp, fill=couleur, anchor='lm')
     return x + w + 44
@@ -109,46 +150,100 @@ def coller(im, motif, xy):
     if motif is not None:
         im.alpha_composite(motif, (int(xy[0]), int(xy[1])))
 
-def couverture(s, i):
-    im = Image.new('RGBA', (W, H), FOND + (255,)); d = ImageDraw.Draw(im)
-    pastille(d, (M, 84), str(spec.get('categorie', 'ASTUCE')).upper()[:20], ACC, (255, 255, 255))
-    y = 190
-    h = bloc(d, (M, y), s.get('titre', ''), F_BOLD, 92, W - 2 * M, TXT, 1.08, max_lignes=4, min_sz=64)
-    y += h + 10
-    if s.get('titre_en'):
-        y += 14 + bloc(d, (M, y + 14), s['titre_en'], F_MED, 38, W - 2 * M, DOUX, 1.2, max_lignes=2) + 10
-    # carte photo (ou grand emoji) en bas
-    top, bas = max(y + 40, 640), H - 140
-    if photo:
-        p = Image.open(photo).convert('RGB')
-        p = ImageOps.fit(p, (W - 2 * M, bas - top), Image.LANCZOS, centering=(0.5, 0.45)).convert('RGBA')
-        masque = Image.new('L', p.size, 0)
-        ImageDraw.Draw(masque).rounded_rectangle([0, 0, p.width, p.height], radius=44, fill=255)
-        ombre = Image.new('RGBA', (W, H), (0, 0, 0, 0))
-        ImageDraw.Draw(ombre).rounded_rectangle([M + 6, top + 14, W - M + 6, bas + 14], radius=44, fill=(0, 0, 0, 60))
-        im.alpha_composite(ombre.filter(ImageFilter.GaussianBlur(16)))
-        im.paste(p, (M, top), masque)
-        e = emoji_img(s.get('emoji'), 130)
-        if e:
-            coller(im, e, (W - M - e.width + 20, top - e.height // 2))
-    else:
-        d.rounded_rectangle([M, top, W - M, bas], radius=44, fill=CARTE)
-        e = emoji_img(s.get('emoji') or '🐾', min(380, bas - top - 80))
-        if e:
-            coller(im, e, ((W - e.width) / 2, top + (bas - top - e.height) / 2))
-    d = ImageDraw.Draw(im)
-    # bouton « glisse »
+def bouton_glisse(d, x1, y0):
     fp = f(F_BOLD, 28); txt = 'Swipe'; w = d.textlength(txt, font=fp)
-    x1 = W - M - 24; x0 = x1 - w - 100; y0 = bas - 80
-    d.rounded_rectangle([x0, y0, x1, y0 + 58], radius=29, fill=TXT)
-    d.text((x0 + 28, y0 + 29), txt, font=fp, fill=(255, 255, 255), anchor='lm')
+    x0 = x1 - w - 100
+    d.rounded_rectangle([x0, y0, x1, y0 + 58], radius=29, fill=ACC)
+    d.text((x0 + 28, y0 + 29), txt, font=fp, fill=BLANC, anchor='lm')
     ax = x1 - 34; ay = y0 + 29
-    d.line([(ax - 26, ay), (ax, ay)], fill=(255, 255, 255), width=5)
-    d.polygon([(ax + 6, ay), (ax - 10, ay - 11), (ax - 10, ay + 11)], fill=(255, 255, 255))
+    d.line([(ax - 26, ay), (ax, ay)], fill=BLANC, width=5)
+    d.polygon([(ax + 6, ay), (ax - 10, ay - 11), (ax - 10, ay + 11)], fill=BLANC)
+
+# ---------- avec photo en arriere-plan ----------
+def couverture_photo(s, i):
+    im = fond_photo(i)
+    degrade(im, H * 0.42, H, (0, 0, 0), 0, 215)
+    degrade(im, 0, 260, (0, 0, 0), 110, 0)
+    d = ImageDraw.Draw(im)
+    pastille(d, (M, 84), str(spec.get('categorie', 'ASTUCE')).upper()[:20], ACC, BLANC)
+    larg = W - 2 * M
+    h_titre = bloc(d, (M, 0), s.get('titre', ''), F_BOLD, 96, larg, BLANC, 1.06, 4, 64, dessine=False)
+    h_en = bloc(d, (M, 0), s['titre_en'], F_MED, 38, larg, BLANC, 1.2, 2, dessine=False) + 14 if s.get('titre_en') else 0
+    y = H - 170 - h_en - h_titre
+    bloc(d, (M, y), s.get('titre', ''), F_BOLD, 96, larg, BLANC, 1.06, 4, 64, ombre=True)
+    if s.get('titre_en'):
+        bloc(d, (M, y + h_titre + 14), s['titre_en'], F_MED, 38, larg, (235, 235, 235), 1.2, 2, ombre=True)
+    e = emoji_img(s.get('emoji'), 120)
+    if e:
+        coller(im, e, (W - M - e.width, 70))
+    d = ImageDraw.Draw(im)
+    bouton_glisse(d, W - M, H - 150)
+    pied(d, i, BLANC, (200, 200, 200))
+    return im
+
+def point_photo(s, i, num):
+    im = fond_photo(i, assombrir=0.08)
+    d = ImageDraw.Draw(im)
+    larg = W - 2 * M - 60; x = M + 30
+    def pile(dessine, y0, dd):
+        y = y0
+        y += bloc(dd, (x, y), s.get('titre', ''), F_BOLD, 70, larg - 150, TXT, 1.1, 3, 50, dessine) + 12
+        if s.get('titre_en'):
+            y += bloc(dd, (x, y), s['titre_en'], F_MED, 34, larg, ACC, 1.2, 2, 28, dessine) + 6
+        if dessine:
+            dd.line([(x, y + 18), (x + 120, y + 18)], fill=ACC, width=7)
+        y += 50
+        y += bloc(dd, (x, y), s.get('texte', ''), F_REG, 44, larg, DOUX, 1.36, 6, 32, dessine)
+        return y - y0
+    h = pile(False, 0, d)
+    bas = H - 120
+    haut = bas - h - 74 - 26 - 56
+    # carte blanche legerement transparente en bas, la photo reste visible en haut
+    carte = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    ImageDraw.Draw(carte).rounded_rectangle([M - 30, haut + 10, W - M + 30, bas + 10], radius=48, fill=(0, 0, 0, 70))
+    im.alpha_composite(carte.filter(ImageFilter.GaussianBlur(18)))
+    carte = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    ImageDraw.Draw(carte).rounded_rectangle([M - 30, haut, W - M + 30, bas], radius=48, fill=CARTE + (243,))
+    im.alpha_composite(carte)
+    d = ImageDraw.Draw(im)
+    # pastille ronde avec le numero, a cheval sur la carte
+    r = 74; cx, cy = M + 30 + r, haut
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=ACC, outline=BLANC, width=8)
+    d.text((cx, cy + 4), str(num), font=f(F_BOLD, 96), fill=BLANC, anchor='mm')
+    pile(True, haut + r + 26, d)
+    e = emoji_img(s.get('emoji'), 120)
+    if e:
+        coller(im, e, (W - M - e.width, haut + 30))
+    d = ImageDraw.Draw(im)
+    # bandeau pied lisible sur la photo
+    degrade(im, H - 110, H, (0, 0, 0), 0, 150)
+    pied(ImageDraw.Draw(im), i, BLANC, (200, 200, 200))
+    return im
+
+def fin_photo(s, i):
+    im = fond_photo(i, flou=6)
+    im.alpha_composite(Image.new('RGBA', (W, H), ACC + (178,)))
+    return fin_contenu(im, s, i)
+
+# ---------- sans photo (ancien style) ----------
+def couverture_uni(s, i):
+    im = Image.new('RGBA', (W, H), FOND + (255,)); d = ImageDraw.Draw(im)
+    pastille(d, (M, 84), str(spec.get('categorie', 'ASTUCE')).upper()[:20], ACC, BLANC)
+    y = 190
+    y += bloc(d, (M, y), s.get('titre', ''), F_BOLD, 92, W - 2 * M, TXT, 1.08, 4, 64) + 10
+    if s.get('titre_en'):
+        y += 14 + bloc(d, (M, y + 14), s['titre_en'], F_MED, 38, W - 2 * M, DOUX, 1.2, 2) + 10
+    top, bas = max(y + 40, 640), H - 140
+    d.rounded_rectangle([M, top, W - M, bas], radius=44, fill=CARTE)
+    e = emoji_img(s.get('emoji') or '🐾', min(380, bas - top - 80))
+    if e:
+        coller(im, e, ((W - e.width) / 2, top + (bas - top - e.height) / 2))
+    d = ImageDraw.Draw(im)
+    bouton_glisse(d, W - M - 24, bas - 80)
     pied(d, i)
     return im
 
-def point(s, i, num):
+def point_uni(s, i, num):
     im = Image.new('RGBA', (W, H), FOND + (255,)); d = ImageDraw.Draw(im)
     haut, bas = 120, H - 130
     d.rounded_rectangle([M - 20, haut, W - M + 20, bas], radius=48, fill=CARTE)
@@ -175,42 +270,44 @@ def point(s, i, num):
     pied(ImageDraw.Draw(im), i)
     return im
 
-def fin(s, i):
-    im = Image.new('RGBA', (W, H), ACC + (255,)); d = ImageDraw.Draw(im)
+def fin_uni(s, i):
+    return fin_contenu(Image.new('RGBA', (W, H), ACC + (255,)), s, i)
+
+def fin_contenu(im, s, i):
     e = emoji_img(s.get('emoji') or '💬', 190)
     if e:
         coller(im, e, (M, 150))
     d = ImageDraw.Draw(im)
     y = 400
-    y += bloc(d, (M, y), s.get('titre', ''), F_BOLD, 84, W - 2 * M, (255, 255, 255), 1.08, max_lignes=3, min_sz=56) + 20
+    y += bloc(d, (M, y), s.get('titre', ''), F_BOLD, 84, W - 2 * M, BLANC, 1.08, 3, 56) + 20
     if s.get('question'):
-        y += bloc(d, (M, y), s['question'], F_MED, 44, W - 2 * M, (255, 255, 255), 1.3, max_lignes=4, min_sz=34) + 10
+        y += bloc(d, (M, y), s['question'], F_MED, 44, W - 2 * M, BLANC, 1.3, 4, 34) + 10
     if s.get('titre_en'):
-        y += bloc(d, (M, y), s['titre_en'], F_REG, 32, W - 2 * M, tuple(int(c * 0.25 + 255 * 0.75) for c in ACC), 1.25, max_lignes=3) + 10
-    # boutons d'action
+        y += bloc(d, (M, y), s['titre_en'], F_REG, 32, W - 2 * M, tuple(int(c * 0.25 + 255 * 0.75) for c in ACC), 1.25, 3) + 10
     y = max(y + 40, H - 420)
     for txt in ['💬  Answer in the comments', '💾  Save it for later', '📤  Send it to a friend']:
         lab = txt.split('  ', 1)[1]
         fp = f(F_BOLD, 34)
-        d.rounded_rectangle([M, y, W - M, y + 86], radius=43, fill=(255, 255, 255))
+        d.rounded_rectangle([M, y, W - M, y + 86], radius=43, fill=BLANC)
         ic = emoji_img(txt.split('  ')[0], 48)
         if ic:
             coller(im, ic, (M + 30, y + 19))
         d = ImageDraw.Draw(im)
         d.text((M + 100, y + 43), lab, font=fp, fill=TXT, anchor='lm')
         y += 104
-    d.text((M, H - 70), '@pattepatte2026', font=f(F_MED, 26), fill=(255, 255, 255), anchor='lm')
+    d.text((M, H - 70), '@pattepatte2026', font=f(F_MED, 26), fill=BLANC, anchor='lm')
     return im
 
 num = 0
 for i, s in enumerate(slides):
     t = s.get('type', 'point')
     if t == 'couverture':
-        im = couverture(s, i)
+        im = couverture_photo(s, i) if PHOTO else couverture_uni(s, i)
     elif t == 'fin':
-        im = fin(s, i)
+        im = fin_photo(s, i) if PHOTO else fin_uni(s, i)
     else:
         num += 1
-        im = point(s, i, s.get('num', num))
+        n = s.get('num', num)
+        im = point_photo(s, i, n) if PHOTO else point_uni(s, i, n)
     im.convert('RGB').save(os.path.join(out, 'C-%s-%d.jpg' % (job, i + 1)), quality=92)
-print('carrousel ok', N, 'images')
+print('carrousel ok', N, 'images', 'photo' if PHOTO else 'sans photo')
