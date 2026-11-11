@@ -106,7 +106,7 @@ degrade = Image.new('L', (1, H))
 for y in range(H):
     degrade.putpixel((0, y), int(255 * max(0, (y - H * 0.5) / (H * 0.5)) ** 1.5 * 0.7))
 degrade = degrade.resize((W, H))
-degrade_clip = degrade.point(lambda v: int(v * 0.35))
+degrade_clip = degrade.point(lambda v: int(v * 0.85))
 noir = Image.new('RGB', (W, H), (8, 8, 12))
 
 # --- clips video de fond (vraies videos d animaux, une par scene) ---
@@ -180,7 +180,8 @@ def scene_couverture(s, t_reel, d_s, prog_global):
         d.text((88, y + 34), cat, font=fp, fill=(255, 255, 255, int(255 * a)), anchor='lm')
     # titre mot par mot
     fnt, lignes, sz = ajuste(d, s.get('titre', ''), F_BOLD, 104, W - 180, 4, 70)
-    hl = int(sz * 1.25); ytop = 1200 - hl * len(lignes)
+    hl = int(sz * 1.25); n_en = 2 if s.get('titre_en') else 0
+    ytop = H - 330 - hl * len(lignes) - n_en * 66
     k = 0
     k0 = 0
     for i, l in enumerate(lignes):
@@ -205,8 +206,9 @@ def scene_couverture(s, t_reel, d_s, prog_global):
         fe, le, _ = ajuste(d, s['titre_en'], F_MED, 44, W - 140, 2, 34)
         for i, l in enumerate(le):
             wl = d.textlength(l, font=fe)
-            d.rounded_rectangle([56, 1236 + i * 66, 88 + wl, 1236 + i * 66 + 58], radius=18, fill=(255, 255, 255, al))
-            d.text((72, 1240 + i * 66), l, font=fe, fill=ACC + (al,))
+            yen = ytop + hl * len(lignes) + 36
+            d.rounded_rectangle([56, yen + i * 66, 88 + wl, yen + i * 66 + 58], radius=18, fill=(255, 255, 255, al))
+            d.text((72, yen + 4 + i * 66), l, font=fe, fill=ACC + (al,))
     e = emoji(s.get('emoji'), 150)
     if e and t > 0.9:
         sc = ease_back((t - 0.9) / 0.45)
@@ -236,10 +238,18 @@ def ombre_texte(d, xy, txt, fnt, fill, a):
 def scene_point(s, t_reel, d_s, num, prog_global, tt):
     t = t_reel * 1.8 + 0.2  # animations rapides
     im = fond_photo(tt, 1.0, num, t_reel)
+    if CLIPS:
+        im = Image.composite(noir, im.convert('RGB'), degrade_clip).convert('RGBA')
     d = ImageDraw.Draw(im)
     barre_progression(d, prog_global)
     x = 80
-    top = 230 if CLIPS else 430
+    # hauteur du bloc (pastille + titre + texte) pour le poser en bas de l'ecran
+    _ft, _lt, _szt = ajuste(d, s.get('titre', ''), F_BOLD, 112, W - 160, 3, 70)
+    _fb, _lb, _szb = ajuste(d, s.get('texte', ''), F_MED, 56, W - 240, 6, 40)
+    _h = 270 + len(_lt) * int(_szt * 1.22) + 14 + 34 + (int(_szb * 1.36) * len(_lb) + 40 if s.get('texte') else 0)
+    if s.get('titre_en'):
+        _h += 2 * int(44 * 1.5)
+    top = max(230, H - 300 - _h)
     # pastille numero (cercle couleur) qui « pop »
     eb = ease_back(t / 0.45)
     r = int(105 * max(0.05, eb))
